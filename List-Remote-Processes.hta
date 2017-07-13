@@ -1,0 +1,46 @@
+<html>
+<head>
+<title>Process</title>
+<HTA:APPLICATION ID="oHTA"
+    APPLICATIONNAME="DiskFreeSpace"
+    SINGLEINSTANCE="yes"
+    NAVIGABLE="yes">
+
+</head>
+	<body bgcolor="#ffffff">
+	<font size="2" face="Century Gothic, Tahoma, Arial, Helvetica">
+
+	<script language="JavaScript">
+	<!--
+	if (window.resizeTo) self.resizeTo(1200,800);
+	//-->
+	</script>
+
+	<script language="VBScript">
+		document.open
+		document.write "<p><h2 align=right><font color='black' face='Century Gothic, Tahoma, Arial, Helvetica'>Remote Process's<hr size=1></font></h2>"
+		document.write "<div align=right>Run From Elevated CMD</div>"
+		document.write "<div align=right>Justin Chalfant 7/9/2012</div>"
+		document.close
+	</script>
+
+	<script language="VBScript">
+	on error resume next	
+		document.open
+		document.writeln "<left><table border=1 bgcolor='white'>"
+		document.write "<tr><th bgcolor='lightblue'><font size='2' face='Century Gothic, Tahoma, Arial, Helvetica'>Process</th><th bgcolor=lightblue><font size='2' face='Century Gothic, Tahoma, Arial, Helvetica'>Path</th></tr>"
+		ComputerName = InputBox ("Enter the computer name:" & chr(13) & chr(13) & "Leave it blank for local machine", "Enter Target Hostname", "CVB-")
+		Set objWMIService = GetObject("winmgmts:\\" & ComputerName& "\root\cimv2")
+		Set colProcesses = objWMIService.ExecQuery("Select * from Win32_Process")
+  
+		For Each objProcess in colProcesses
+			document.write "<tr><td><font size='2' face='Century Gothic, Tahoma, Arial, Helvetica'>" & objProcess.Caption & "</td>"
+			document.write  "<td><font size='2' face='Century Gothic, Tahoma, Arial, Helvetica'>" & objProcess.CommandLine  & "</td>"
+		Next
+
+		document.writeln "</table></left><br><br>"
+		document.close
+	</script>
+
+</body>
+</html>
