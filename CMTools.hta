@@ -1,0 +1,966 @@
+<html>
+<head>
+<title>CM Tools</title>
+<HTA:APPLICATION 
+	ID="objTest" 
+	APPLICATIONNAME="cm_tools"
+	SCROLL="no"
+	SINGLEINSTANCE="yes"
+	MAXIMIZEBUTTON="no"
+	MINIMIZEBUTTON="no"
+	BORDER="thin"
+>
+<style type="text/css">
+.v10  {font-family:verdana;font-size:10pt;}
+.v10x {font-family:verdana;font-size:10pt;background:#e1e1e1;}
+</style>
+</head>
+
+<script language="VBScript">
+'****************************************************************
+' Filename..: cmtools.hta
+' Author....: David M. Stein
+' Date......: 08/25/2011
+' Purpose...: export SCCM inventory apps by selected collection
+' SQL.......: DBSERVER2/CM_ABC
+'****************************************************************
+
+'----------------------------------------------------------------
+' comment: global variables
+'----------------------------------------------------------------
+
+Const debugEnabled = True
+
+'----------------------------------------------------------------
+' comment: pattern to match for filtering collections list
+'----------------------------------------------------------------
+
+Const collFilter = "Applications %"
+
+'----------------------------------------------------------------
+' comment: custom table-value functions for filtering app sets
+'----------------------------------------------------------------
+
+Const v1 = "tvFN_SoftWareWithExcl"
+Const v2 = "tvFN_SoftWare"
+
+Const max = 0
+
+Const currHeight = 400
+Const currWidth  = 550
+
+Const appTitle = "CR-Web Applications Exporter"
+Const appver = "1.2011.08.25"
+
+'----------------------------------------------------------------
+' comment: ADO and Excel enumeration values
+'----------------------------------------------------------------
+
+Const adOpenStatic = 3
+Const adLockReadOnly = 1
+Const adUseClient = 3
+Const adCmdText = &H0001
+Const adStateClosed = &H00000000
+Const adStateOpen = &H00000001
+
+Const xlSolid = 1
+Const xlAutomatic = -4105
+Const xlCenter = -4108
+Const xlGeneral = 1
+Const xlLeft = -4131
+Const xlRight = -4152
+Const xlBottom = -4107
+Const xlThemeColorAccent1 = 5
+Const xlThemeColorAccent2 = 6
+Const xlThemeColorAccent3 = 7
+Const xlThemeColorAccent4 = 8
+Const xlThemeColorAccent5 = 9
+Const xlThemeColorAccent6 = 10
+Const xlContext = -5002
+
+Const dsMediumBlue = 0.599993896298105
+Const dsMediumGray = -0.149998474074526
+Const dsLightGreen = 0.799981688894314
+Const dsLightBlue  = 0.799981688894314
+
+Const dsn = "DRIVER=SQL Server;SERVER=DBSERVER2;database=CM_ABC;UID=UserName;PWD=P@ssW0rd123;"
+
+Public strView, collID, collName, conn, strFilter, objExcel, book, xnames
+
+'----------------------------------------------------------------
+' function: actions to perform when app is launched
+'----------------------------------------------------------------
+
+Sub Window_Onload
+	window.resizeTo currWidth, currHeight
+	idver.innerText = "Version: " & appver
+	idnam.innerText = "City of Virginia Beach, ComIT"
+	OpenConnection
+	GetCollections
+End Sub
+
+'----------------------------------------------------------------
+' function: open ADO connection
+'----------------------------------------------------------------
+
+Sub OpenConnection
+	Set conn = CreateObject("ADODB.Connection")
+	On Error Resume Next
+	conn.Open dsn
+	If err.Number <> 0 Then
+		MsgBox "OpenConnection(): unable to connect to the database" & vbCRLF & _
+			"error number: " & err.Number & vbCRLF & _
+			"error description: " & err.Description, vbOkOnly+vbCritical, "Error"
+		window.close()
+		Exit Sub
+	End If
+End Sub
+
+'----------------------------------------------------------------
+' function: cancel and close app
+'----------------------------------------------------------------
+
+Sub CancelButton
+	Set conn = Nothing
+	window.clearTimeout(idTimer)
+	window.Close()
+End Sub
+
+'----------------------------------------------------------------
+' function: show the "about" dialog form
+'----------------------------------------------------------------
+
+Sub AboutButton
+	MsgBox appTitle & vbCRLF & vbCRLF & _
+		"Version: " & appver & vbCRLF & _
+		"Contact: @skatterbrainz", _
+		vbOkOnly+vbInformation, "About CR-Web Applications Exporter"
+End Sub
+
+'----------------------------------------------------------------
+' function: populate drop-down list with SCCM site collections
+'----------------------------------------------------------------
+
+Sub GetCollections
+	Dim cmd, rs, objOption
+	
+	Set cmd = CreateObject("ADODB.Command")
+	Set rs  = CreateObject("ADODB.Recordset")
+	
+	query = "SELECT CollectionID, CollectionName " & _
+		"FROM dbo.vw_CollectionList " & _
+		"WHERE CollectionName LIKE '" & collFilter & "' " & _
+		"ORDER BY CollectionName"
+	
+	rs.CursorLocation = adUseClient
+	rs.CursorType = adOpenStatic
+	rs.LockType = adLockReadOnly
+	
+	Set cmd.ActiveConnection = conn
+	
+	cmd.CommandType = adCmdText
+	cmd.CommandText = query
+	rs.Open cmd
+	
+	If Not(rs.BOF And rs.EOF) Then
+		
+		rows = rs.RecordCount
+		
+		Do Until rs.EOF
+		
+			Set objOption = Document.createElement("OPTION")
+			objOption.Text = rs.Fields("CollectionName").value
+			objOption.Value = rs.Fields("CollectionID").value
+			collection.Add(objOption)
+			
+			rs.MoveNext
+			
+		Loop
+	End If
+	
+	rs.Close
+	Set rs = Nothing
+	Set cmd = Nothing
+	
+End Sub
+	
+'----------------------------------------------------------------
+' function: 
+'----------------------------------------------------------------
+
+Sub ExecAction
+
+	Dim coll, cnames, apps, appcount
+	Dim count1, count2
+	Dim objSheet, objRange, intRow, column
+
+	Dim objItem, objRadio
+	
+	collID = ""
+	
+	For each objItem in Collection
+		If objItem.Selected Then
+			collID = objItem.Value
+			collName = objItem.Text
+		End If
+	Next
+	
+	If collID = "" Or IsNull(collID) Then
+		MsgBox "No collection was selected...", vbOkOnly+vbInformation, appTitle
+		Exit Sub
+	End If
+	
+	cnames = ComputerNames2()
+	appcount = 0
+
+	If xnames = "" Then
+		echo "fail", "NO data returned from query"
+		Exit Sub
+	End If
+	
+	echo "info", "Export(): opening excel application instance..."
+	
+	For each cn in Split(cnames, ",")
+		Set objOption = Document.createElement("OPTION")
+		objOption.Text  = cn
+		objOption.Value = cn
+		clist.Add(objOption)
+	Next	
+
+End Sub
+
+'----------------------------------------------------------------
+' function: list of computers in a specified collection
+'----------------------------------------------------------------
+
+Function ComputerNames2()
+
+	echo "info", "ComputerNames2(): getting computers in collection..."
+
+	Dim cmd, rs, query, pair, result : result = ""
+	Dim cnn, unn
+	
+	query = "SELECT DISTINCT ComputerName " & _
+		"FROM dbo.vw_AssetNo " & _
+		"WHERE (CollectionID='" & collID & "') " & _
+		"ORDER BY ComputerName"
+	
+	On Error Resume Next
+	Set cmd = CreateObject("ADODB.Command")
+	Set rs  = CreateObject("ADODB.Recordset")
+	
+	rs.CursorLocation = adUseClient
+	rs.CursorType = adOpenStatic
+	rs.LockType = adLockReadOnly
+	
+	Set cmd.ActiveConnection = conn
+	cmd.CommandType = adCmdText
+	cmd.CommandText = query
+	
+	rs.Open cmd
+	If err.Number <> 0 Then
+		echo "fail", "ComputerNames2(): " & err.Number & " / " & err.Description & vbCRLF & query
+		Exit Function
+	End If
+	
+	If Not(rs.BOF And rs.EOF) Then
+		count1 = rs.RecordCount
+		Do Until rs.EOF
+			cnn = rs.Fields("ComputerName").value
+			
+			If result <> "" Then
+				result = result & "," & cnn
+			Else
+				result = cnn
+			End If
+			
+			If xnames <> "" Then
+				xnames = xnames & "," & cnn
+			Else
+				xnames = cnn
+			End If
+			
+			rs.MoveNext
+		Loop
+	Else
+		echo "warn", "ComputerNames2(): *** no results returned from query!"
+	End If
+	
+	rs.Close
+	Set rs = Nothing
+	Set cmd = Nothing
+
+	echo "info", "ComputerNames2(): " & count1 & " records returned"
+	ComputerNames2 = result
+	
+End Function
+
+'----------------------------------------------------------------
+' function: 
+'----------------------------------------------------------------
+
+Function ComputerNames()
+
+	echo "info", "ComputerNames(): getting computers in collection..."
+
+	Dim cmd, rs, query, result : result = ""
+	
+	query = "SELECT DISTINCT ComputerName " & _
+		"FROM " & strView & "('" & collID & "') " & _
+		"ORDER BY ComputerName"
+	
+	On Error Resume Next
+	Set cmd = CreateObject("ADODB.Command")
+	Set rs  = CreateObject("ADODB.Recordset")
+	
+	rs.CursorLocation = adUseClient
+	rs.CursorType = adOpenStatic
+	rs.LockType = adLockReadOnly
+	
+	Set cmd.ActiveConnection = conn
+	cmd.CommandType = adCmdText
+	cmd.CommandText = query
+	
+	rs.Open cmd
+	If err.Number <> 0 Then
+		echo "fail", "ComputerNames(): " & err.Number & " / " & err.Description & vbCRLF & query
+		Exit Function
+	End if
+	
+	If Not(rs.BOF And rs.EOF) Then
+		count1 = rs.RecordCount
+		Do Until rs.EOF
+			If result <> "" Then
+				result = result & "," & rs.Fields("ComputerName").value
+			Else
+				result = rs.Fields("ComputerName").value
+			End If
+			rs.MoveNext
+		Loop
+	End If
+	
+	rs.Close
+	Set rs = Nothing
+	Set cmd = Nothing
+	
+	ComputerNames = result
+	
+End Function
+
+'----------------------------------------------------------------
+'----------------------------------------------------------------
+
+Sub RunAction(sScheduleID, sType)
+
+	On Error Resume Next
+	Const HKLM = &H80000002
+	
+	ChangeAssign = False
+	SetAction    = False
+	ReRunAdvert  = False
+	
+	Select Case sScheduleID
+		Case "{00000000-0000-0000-0000-000000000001}"
+			Action = "Hardware Inventory action"
+			SetAction = True
+		Case "{00000000-0000-0000-0000-000000000002}"
+			Action = "Software Inventory action"
+			SetAction = True
+		Case "{00000000-0000-0000-0000-000000000003}"
+			Action = "Discovery action"
+			SetAction = True
+		Case "{00000000-0000-0000-0000-000000000010}"
+			Action = "File Collection action"
+			SetAction = True		
+		Case "{00000000-0000-0000-0000-000000000021}"
+			Action = "Refresh Machine Policy action"
+			SetAction = True
+		Case "{00000000-0000-0000-0000-000000000022}"
+			Action = "Evaluate Policy action"
+			SetAction = True	
+		Case "{00000000-0000-0000-0000-000000000031}"
+			Action = "Software Metering Usage action"
+			SetAction = True	
+		Case "{00000000-0000-0000-0000-000000000032}"
+			Action = "Update Windows Installer Sources action"
+			SetAction = True
+		Case "ASSIGN"
+			ChangeAssign = True
+			sSiteCode = InputBox("Please enter the site code you wish the client to be assigned to:", "Site Code","")
+			If sSiteCode = "" Then
+				WScript.Quit(0)
+			End If
+		Case "ASSIGNGUI"
+			ChangeAssign = True
+			sSiteCode = WScript.Arguments(3)
+		Case "RERUNADVERTGUI"
+			ReRunAdvert=True
+			SetAction=True
+			sAdvertID=WScript.Arguments(3)
+		Case "RERUNADVERT"
+			ReRunAdvert=True
+			SetAction=True
+			sAdvertID= Ucase(InputBox("Please enter the Advertisement ID you wish to rerun on this client:", "Advertisement ID",""))
+			If sAdvertID = "" Then
+				WScript.Quit(0)
+			End if
+	End select
+	
+	
+	If sType = 1 Then
+		WriteLog "--------------------------------------------------","1"
+		sMachine = WScript.Arguments(1)
+		Pinged = False
+		Set cPingResults = GetObject("winmgmts:{impersonationLevel=impersonate}//./root/cimv2").ExecQuery("Select * from Win32_PingStatus WHERE Address="&Chr(34)&sMachine&Chr(34))
+		For Each oPingResult In cPingResults
+			If oPingResult.StatusCode = 0 Then
+				Pinged = True
+			End If
+		Next
+	   	If Pinged = False Then
+	   		WriteLog "Unable to ping " & sMachine,"2"
+	    	WScript.Echo("Unable to ping " & sMachine)
+	      	WScript.Quit
+	    Else
+	    	WriteLog "Successfully pinged " & sMachine,"1"
+	    End if
+		Set oCCMNamespace = GetObject("winmgmts://" & sMachine & "/root/ccm")
+		If (Err.number <> 0) Then
+			WriteLog "While trying to connect to WMI on " & sMachine & " an error occurred." & VbCrLf & VbCrLf & "Error: " & Err.Number & vbCRLF & "Description: " & Err.Description,"3"
+			WScript.Echo("While trying to connect to WMI on " & sMachine & " an error occurred." & VbCrLf & VbCrLf & "Error: " & Err.Number & vbCRLF & "Description: " & Err.Description)
+	      	WScript.Quit 
+	    Else
+	    	WriteLog "Successfully connected to WMI namespace \\" & sMachine & "\root\ccm","1" 
+		End If
+		Err.Clear
+		Set oInstance = oCCMNamespace.Get("SMS_Client")
+		If ReRunAdvert = True Then
+			AdvertHasRun = False
+			set oCCMNamespace2 = GetObject("winmgmts://" & sMachine & "/root/ccm/policy/machine/actualconfig")
+			If (Err.number <> 0) Then
+				WriteLog "While trying to connect to \\" & sMachine & "\root\ccm\policy\machine\actualconfig an error occurred." & vbCRLF & vbCRLF & "Error: " & Err.Number & vbCRLF & "Description: " & Err.Description,,"3"
+				WScript.Echo("While trying to connect to \\" & sMachine & "\root\ccm\policy\machine\actualconfig an error occurred." & vbCRLF & vbCRLF & "Error: " & Err.Number & vbCRLF & "Description: " & Err.Description)
+	    		WScript.Quit
+	    	Else 
+	    		WriteLog "Successfully connected to \\" & sMachine & "\root\ccm\policy\machine\actualconfig.","1"
+			End If
+			Err.Clear
+			Set objSchedules = oCCMNamespace2.ExecQuery("select * from CCM_Scheduler_ScheduledMessage")
+			For each objSchedHist in objSchedules
+	    		If Instr(objSchedHist.ScheduledMessageID, sAdvertID) > 0 Then
+	    		  WriteLog "Found advertisement "&sAdvertID&" in advertisement history.","1"
+	         	  sScheduleID = objSchedHist.ScheduledMessageID
+	         	  WriteLog "The schedule for this advertisement is "&sScheduleID,"1"
+	         	  AdvertHasRun = True
+	         	  arrPackage = Split(objSchedHist.ScheduledMessageID,"-")
+	         	  PackageID = arrPackage(1)
+	         	  WriteLog "The package is "&PackageID,"1"
+	         	  'delete remote registry key
+	         	  Err.clear
+	         	  sKey = "SOFTWARE\Microsoft\SMS\Mobile Client\Software Distribution\Execution History\System\" & PackageID &"\"
+	         	  Set oRegistry	= GetObject("winmgmts:{impersonationLevel=impersonate}!//" & sMachine & "/root/default:StdRegProv")
+	         	  oRegistry.EnumKey HKLM,sKey, sKeys
+	         	  For u = 0 To UBound(sKeys)
+	         	   errReg = oRegistry.DeleteKey(HKLM, sKey&sKeys(u))
+	         	  Next
+				  If (ErrReg <> 0) Then
+				  	WriteLog "Failed to delete execution history in the registry on "&sMachine&" for advertisement "&sAdvertID,"3"
+					WScript.Echo("Failed to delete execution history on "&sMachine&" for advertisement "&sAdvertID)
+				  Else
+				  	WriteLog "Successfully deleted \\"&sMachine&"\SOFTWARE\Microsoft\SMS\Mobile Client\Software Distribution\Execution History\System\" & PackageID&" from the remote registry","1"
+				  End If  
+				  Action = "Advertisement"
+	           	  exit For
+	    		End If
+			Next
+			If AdvertHasRun = False Then
+				WriteLog "Advertisement ID " & sAdvertID & " has not run before on " & sMachine,"2"
+				WScript.Echo("Advertisement ID " & sAdvertID & " has not run before on " & sMachine)
+	    		WScript.Quit 
+			End If
+		End If	
+		
+		If SetAction = True Then
+			Err.Clear
+			If sScheduleID = "{00000000-0000-0000-0000-000000000001}" Then
+				HWChoice = MsgBox("Would you like to force a full inventory?",vbYesNo,"Full hardware inventory?")
+				If HWChoice = 6 Then
+					WriteLog "Full hardware inventory resynch selected","1"
+					Set oINVNamespace = GetObject("winmgmts://" & sMachine & "/root/ccm/invagt")
+					If Err.Number = 0 Then
+						WriteLog "Connected to WMI namespace \\" & sMachine & "\root\ccm\invagt","1"
+						oINVNamespace.Delete "InventoryActionStatus.InventoryActionID="&Chr(34)&sScheduleID&Chr(34)
+						If Err.Number = 0 Then
+							WriteLog "Successfully deleted delta Hardware Inventory information","1"
+							Action = "Full Hardware Inventory action"
+						Else
+							WriteLog "Could not delete delta Hardware Inventory information. Error:"&Err.Number&" Description:"&Err.Description,"2"
+						End If
+					Else
+						WriteLog "Could not connect to WMI namespace \\" & sMachine & "\root\ccm\invagt. Will not force full inventory.  Error:"&Err.Number&" Description:"&Err.Description,"3"
+						WScript.Echo("Could not connect to WMI namespace \\" & sMachine & "\root\ccm\invagt. Will not force full inventory.  Error:"&Err.Number&" Description:"&Err.Description)
+						WScript.Quit(0)
+					End If
+				Else
+					WriteLog "Full hardware inventory resynch not selected","1"
+				End If
+			End If
+			If sScheduleID = "{00000000-0000-0000-0000-000000000002}" Then
+				SWChoice = MsgBox("Would you like to force a full inventory?",vbYesNo,"Full software inventory?")
+				If SWChoice = 6 Then
+					WriteLog "Full software inventory resynch selected","1"
+					Set oINVNamespace = GetObject("winmgmts://" & sMachine & "/root/ccm/invagt")
+					If Err.Number = 0 Then
+						WriteLog "Connected to WMI namespace \\" & sMachine & "\root\ccm\invagt","1"
+						oINVNamespace.Delete "InventoryActionStatus.InventoryActionID="&Chr(34)&sScheduleID&Chr(34)
+						If Err.Number = 0 Then
+							WriteLog "Successfully deleted delta Software Inventory information","1"
+							Action = "Full Software Inventory action"
+						Else
+							WriteLog "Could not delete delta Software Inventory information. Error:"&Err.Number&" Description:"&Err.Description,"2"
+						End If
+					Else
+						WriteLog "Could not connect to WMI namespace \\" & sMachine & "\root\ccm\invagt. Will not force full inventory.  Error:"&Err.Number&" Description:"&Err.Description,"3"
+						WScript.Echo("Could not connect to WMI namespace \\" & sMachine & "\root\ccm\invagt. Will not force full inventory.  Error:"&Err.Number&" Description:"&Err.Description)
+						WScript.Quit(0)
+					End If
+				Else
+					WriteLog "Full software inventory resynch not selected","1"
+				End If
+			End If
+			Err.Clear
+			set oParams = oInstance.Methods_("TriggerSchedule").inParameters.SpawnInstance_()
+			oParams.sScheduleID = sScheduleID
+			oCCMNamespace.ExecMethod "SMS_Client", "TriggerSchedule", oParams
+			If (Err.number <> 0) Then
+				WriteLog Action & " failed on " & sMachine & "." & vbCRLF & VbCrLf & "Error: " & Err.Number & vbCRLF & "Description: " & Err.Description,"3"
+				WScript.Echo(Action & " failed on " & sMachine & "." & vbCRLF & VbCrLf & "Error: " & Err.Number & vbCRLF & "Description: " & Err.Description)
+			Else
+				WriteLog Action & " was triggered on " & sMachine&". The triggered schedule ID was "&sScheduleID,"1"
+	    		WScript.Echo(Action & " was triggered on " & sMachine)
+			end If
+		End If
+		If ChangeAssign = True then
+			set oParams = oInstance.Methods_("SetAssignedSite").inParameters.SpawnInstance_()
+			oParams.sSiteCode = sSiteCode
+			oCCMNamespace.ExecMethod "SMS_Client", "SetAssignedSite", oParams
+			if (Err.number <> 0) Then
+				WriteLog "Site assignment of " & sSiteCode & " failed on " & sMachine & "." & VbCrLf & VbCrLf & "Error: " & Err.Number & vbCRLF & "Description: " & Err.Description,"3"
+				WScript.Echo("Site assignment of " & sSiteCode & " failed on " & sMachine & "." & VbCrLf & VbCrLf & "Error: " & Err.Number & vbCRLF & "Description: " & Err.Description)
+			Else
+				WriteLog sMachine & " is reassigned to " & sSiteCode,"1"
+	    		WScript.Echo(sMachine & " is reassigned to " & sSiteCode)
+			end If
+		End If
+		WriteLog "******************* Finished ********************","1"
+	End If
+	
+	if sType = 2 Then
+		WriteLog "------------------------------------------------------------","1"
+		If sScheduleID = "{00000000-0000-0000-0000-000000000001}" Then
+			HWChoice = MsgBox("Would you like to force a full inventory?",vbYesNo,"Full hardware inventory?")
+			If HWChoice = 6 Then
+				WriteLog "Full hardware inventory resynch selected","1"
+			Else
+				WriteLog "Full hardware inventory resynch not selected","1"
+			End If
+		Else
+			HWChoice = 0
+		End If
+		If sScheduleID = "{00000000-0000-0000-0000-000000000002}" Then
+			SWChoice = MsgBox("Would you like to force a full inventory?",vbYesNo,"Full software inventory?")
+			If SWChoice = 6 Then
+				WriteLog "Full software inventory resynch selected","1"
+			Else
+				WriteLog "Full software inventory resynch not selected","1"
+			End If
+		Else
+			SWChoice = 0
+		End If
+		WScript.Echo("Querying collection for membership...")
+		winmgmt1 = "winmgmts:{impersonationLevel=impersonate}!//" & WScript.Arguments(3) & "\" & WScript.Arguments(4)
+		Set SystemSet = GetObject( winmgmt1 )
+		strQuery = "SELECT * FROM SMS_CM_RES_COLL_" & WScript.Arguments(1)
+		Set objEnumerator = SystemSet.ExecQuery(strQuery)
+		for each instance in objEnumerator
+			sMachine = instance.name
+			If instance.ClientType = 1 then 	
+				Err.Clear
+				Finish = True	
+				Pinged = False
+				Set cPingResults = GetObject("winmgmts:{impersonationLevel=impersonate}//./root/cimv2").ExecQuery("Select * from Win32_PingStatus WHERE Address="&Chr(34)&sMachine&Chr(34))
+				For Each oPingResult In cPingResults
+					If oPingResult.StatusCode = 0 Then
+						Pinged = True
+					End If
+				Next
+	   			If Pinged = False Then
+	   				WriteLog "Unable to ping " & sMachine,"2"
+	   				WScript.Echo("Unable to ping " & sMachine)
+	      			Finish = False
+	      		Else
+	      			WriteLog "Successfully pinged " & sMachine,"1"
+	    		End If
+				If Finish = True Then
+					set oCCMNamespace = GetObject("winmgmts://" & sMachine & "/root/ccm")
+					If (Err.number <> 0) Then
+						WriteLog "While trying to connect to WMI on \\" & sMachine & " an error occurred. Error: " & Err.Number & ". Description: " & Err.Description,"3"
+						WScript.Echo("While trying to connect to WMI on \\" & sMachine & " an error occurred. Error: " & Err.Number & ". Description: " & Err.Description)
+	      				Finish = False 
+	      			Else
+	      				WriteLog "Successfully connected to WMI namespace \\" & sMachine & "\root\ccm","1"
+					End If
+					Err.Clear
+					If Finish = True Then
+						set oInstance = oCCMNamespace.Get("SMS_Client")
+							If ReRunAdvert = True Then
+								AdvertHasRun = False
+								set oCCMNamespace2 = GetObject("winmgmts://" & sMachine & "/root/ccm/policy/machine/actualconfig")
+								if (Err.number <> 0) Then
+									WriteLog "While trying to connect to" & sMachine & "\root\ccm\policy\machine\actualconfig an error occurred." & vbCRLF & vbCRLF & "Error: " & Err.Number & vbCRLF & "Description: " & Err.Description,"3"
+									WScript.Echo("While trying to connect to" & sMachine & "\root\ccm\policy\machine\actualconfig an error occurred." & VbCrLf & VbCrLf & "Error: " & Err.Number & vbCRLF & "Description: " & Err.Description)
+	    						Else
+	    							WriteLog "Successfully connected to WMI namespace \\"&sMachine & "\root\ccm\policy\machine\actualconfig","1"
+								End If
+								Err.Clear
+								Set objSchedules = oCCMNamespace2.ExecQuery("select * from CCM_Scheduler_ScheduledMessage")
+								For each objSchedHist in objSchedules
+	    							If Instr(objSchedHist.ScheduledMessageID, sAdvertID) > 0 Then
+	    								WriteLog "Found advertisement "&sAdvertID&" in advertisement history.","1"
+	         	  						sScheduleID = objSchedHist.ScheduledMessageID
+	         	  						WriteLog "The schedule for this advertisement is "&sScheduleID,"1"
+	         	  						AdvertHasRun = True
+	         	 				 		arrPackage = Split(objSchedHist.ScheduledMessageID,"-")
+	         	  						PackageID = arrPackage(1)
+	         	  						WriteLog "The package is "&PackageID,"1"
+	         	  						'delete remote registry key
+	         	  						Err.clear
+	         	  						sKey = "SOFTWARE\Microsoft\SMS\Mobile Client\Software Distribution\Execution History\System\" & PackageID &"\"
+	         	  						Set oRegistry	= GetObject("winmgmts:{impersonationLevel=impersonate}!//" & sMachine & "/root/default:StdRegProv")
+	         	  						oRegistry.EnumKey HKLM,sKey, sKeys
+	         	  						For u = 0 To UBound(sKeys)
+	         	   							errReg = oRegistry.DeleteKey(HKLM, sKey&sKeys(u))
+	         	 						Next
+				  						if (ErrReg <> 0) Then
+										  	WriteLog "Failed to delete execution history in the registry on "&sMachine&" for advertisement "&sAdvertID,"3"
+											WScript.Echo("Failed to delete execution history on "&sMachine&" for advertisement "&sAdvertID)
+	    								Else
+				  							WriteLog "Successfully deleted \\"&sMachine&"\SOFTWARE\Microsoft\SMS\Mobile Client\Software Distribution\Execution History\System\" & PackageID&" from the remote registry","1"
+				  						End If  
+				  						Action = "Advertisement"
+	           	  						exit For
+	    							End If
+								Next
+								If AdvertHasRun = False Then
+									WriteLog "Advertisement ID " & sAdvertID & " has not run before on " & sMachine,"2"
+									WScript.Echo("Advertisement ID " & sAdvertID & " has not run before on " & sMachine)
+								End If
+							End If
+										
+							If Setaction = true Then
+							Err.Clear
+							If HWChoice = 6 Then
+								Set oINVNamespace = GetObject("winmgmts://" & sMachine & "/root/ccm/invagt")
+								If Err.Number = 0 Then
+									WriteLog "Connected to WMI namespace \\" & sMachine & "\root\ccm\invagt","1"
+									oINVNamespace.Delete "InventoryActionStatus.InventoryActionID="&Chr(34)&sScheduleID&Chr(34)
+									If Err.Number = 0 Then
+										WriteLog "Successfully deleted delta Hardware Inventory information for "&sMachine,"1"
+										Action = "Full Hardware Inventory action"
+									Else
+										WriteLog "Could not delete delta Hardware Inventory information for "&sMachine& " Error:"&Err.Number&" Description:"&Err.Description,"2"
+										Action = "Hardware Inventory action"
+									End If
+								Else
+									WriteLog "Could not connect to WMI namespace \\" & sMachine & "\root\ccm\invagt. Will not force full inventory.  Error:"&Err.Number&" Description:"&Err.Description,"3"
+									WScript.Echo("Could not connect to WMI namespace \\" & sMachine & "\root\ccm\invagt. Will not force full inventory.  Error:"&Err.Number&" Description:"&Err.Description)
+								End If
+							End If
+							If SWChoice = 6 Then
+								Set oINVNamespace = GetObject("winmgmts://" & sMachine & "/root/ccm/invagt")
+								If Err.Number = 0 Then
+									WriteLog "Connected to WMI namespace \\" & sMachine & "\root\ccm\invagt","1"
+									oINVNamespace.Delete "InventoryActionStatus.InventoryActionID="&Chr(34)&sScheduleID&Chr(34)
+									If Err.Number = 0 Then
+										WriteLog "Successfully deleted delta Software Inventory information for "&sMachine,"1"
+										Action = "Full Software Inventory action"
+									Else
+										WriteLog "Could not delete delta Software Inventory information for "&sMachine&" Error:"&Err.Number&" Description:"&Err.Description,"2"
+										Action = "Software Inventory action"
+									End If
+								Else
+									WriteLog "Could not connect to WMI namespace \\" & sMachine & "\root\ccm\invagt. Will not force full inventory.  Error:"&Err.Number&" Description:"&Err.Description,"3"
+									WScript.Echo("Could not connect to WMI namespace \\" & sMachine & "\root\ccm\invagt. Will not force full inventory.  Error:"&Err.Number&" Description:"&Err.Description)
+								End If
+							End If
+							Err.Clear
+							Set oParams = oInstance.Methods_("TriggerSchedule").inParameters.SpawnInstance_()
+							oParams.sScheduleID = sScheduleID
+							oCCMNamespace.ExecMethod "SMS_Client", "TriggerSchedule", oParams
+							If (Err.number <> 0) Then
+								WriteLog Action & " failed on " & sMachine & ". Error: " & Err.Number & ". Description: " & Err.Description,"3"
+								WScript.Echo(Action & " failed on " & sMachine & ". Error: " & Err.Number & ". Description: " & Err.Description)
+							Else
+								WriteLog Action & " was triggered on " & sMachine&". The triggered schedule ID was "&sScheduleID,"1"
+								WScript.Echo(Action & " was triggered On " & sMachine)
+							End If
+						End if
+						If ChangeAssign = True then
+							set oParams = oInstance.Methods_("SetAssignedSite").inParameters.SpawnInstance_()
+							oParams.sSiteCode = sSiteCode
+							oCCMNamespace.ExecMethod "SMS_Client", "SetAssignedSite", oParams
+							if (Err.number <> 0) Then
+								WriteLog "Site assignment of " & sSiteCode & "failed on " & sMachine & ". Error: " & Err.Number & " Description: " & Err.Description,"3"
+								WScript.Echo("Site assignment of " & sSiteCode & "failed on " & sMachine & ". Error: " & Err.Number & " Description: " & Err.Description)
+							Else
+								WriteLog sMachine & " is reassigned to " & sSiteCode,"1"
+	    						WScript.Echo(sMachine & " is reassigned to " & sSiteCode)
+							End If
+						End If
+					End If
+				End If
+			Else
+				WriteLog sMachine & " - Advanced Client not detected, skipping ...","2"
+				WScript.Echo(sMachine & " - Advanced Client not detected, skipping ...")
+			End If
+		Next
+		WriteLog "******************* Finished ********************","1"
+		WScript.Sleep(10000)
+	End If
+	If sType = 3 Then
+		WriteLog "------------------------------------------------------------","1"
+		If sScheduleID = "{00000000-0000-0000-0000-000000000001}" Then
+			HWChoice = MsgBox("Would you like to force a full inventory?",vbYesNo,"Full hardware inventory?")
+			If HWChoice = 6 Then
+				WriteLog "Full hardware inventory resynch selected","1"
+			Else
+				WriteLog "Full hardware inventory resynch not selected","1"
+			End If
+		Else
+			HWChoice = 0
+		End If
+		If sScheduleID = "{00000000-0000-0000-0000-000000000002}" Then
+			SWChoice = MsgBox("Would you like to force a full inventory?",vbYesNo,"Full software inventory?")
+			If HWChoice = 6 Then
+				WriteLog "Full software inventory resynch selected","1"
+			Else
+				WriteLog "Full software inventory resynch not selected","1"
+			End If
+		Else
+			SWChoice = 0
+		End If
+		Set fs = WScript.CreateObject("Scripting.FileSystemObject")
+		Set a = fs.OpenTextFile(WScript.Arguments(1),1,False)
+		Do While a.AtEndOfStream <> True
+			sMachine = a.Readline
+			Err.Clear
+			Finish = True	
+			Pinged = False
+			Set cPingResults = GetObject("winmgmts:{impersonationLevel=impersonate}//./root/cimv2").ExecQuery("Select * from Win32_PingStatus WHERE Address="&Chr(34)&sMachine&Chr(34))
+			For Each oPingResult In cPingResults
+				If oPingResult.StatusCode = 0 Then
+					Pinged = True
+				End If
+			Next
+	   		If Pinged = False Then
+	   			WriteLog "Unable to ping " & sMachine,"2"
+	    		wscript.Echo("Unable to ping " & sMachine)
+	      		Finish = False
+	      	Else
+	      		WriteLog "Successfully pinged "& sMachine,"1"
+	    	End if
+			If Finish = True Then
+				set oCCMNamespace = GetObject("winmgmts://" & sMachine & "/root/ccm")
+				if (Err.number <> 0) Then
+					WriteLog "While trying to connect to WMI on \\" & sMachine & " an error occurred. Error: " & Err.Number & ". Description: " & Err.Description,"3"
+					WScript.Echo("While trying to connect to WMI on \\" & sMachine & " an error occurred. Error: " & Err.Number & ". Description: " & Err.Description)
+	      			Finish = False 
+	      		Else
+	      			WriteLog "Successfully connected to WMI namespace on \\"& sMachine & "\root\ccm","1"
+				End If
+				Err.Clear
+				If Finish = True Then
+					set oInstance = oCCMNamespace.Get("SMS_Client")
+						If ReRunAdvert = True Then
+							AdvertHasRun = False
+							set oCCMNamespace2 = GetObject("winmgmts://" & sMachine & "/root/ccm/policy/machine/actualconfig")
+							if (Err.number <> 0) Then
+								WriteLog "While trying to connect to \\" & sMachine & "\root\ccm\policy\machine\actualconfig an error occurred." & vbCRLF & vbCRLF & "Error: " & Err.Number & vbCRLF & "Description: " & Err.Description,"3"
+								WScript.Echo("While trying to connect to \\" & sMachine & "/root/ccm/policy/machine/actualconfig an error occurred." & vbCRLF & vbCRLF & "Error: " & Err.Number & vbCRLF & "Description: " & Err.Description)
+	    					Else 
+	    						WriteLog "Successfully connected to namespace \\"&sMachine & "\root\ccm\policy\machine\actualconfig","1"
+							End If
+							Err.Clear
+							Set objSchedules = oCCMNamespace2.ExecQuery("select * from CCM_Scheduler_ScheduledMessage")
+							For each objSchedHist in objSchedules
+	    						If Instr(objSchedHist.ScheduledMessageID, sAdvertID) > 0 Then
+	    							WriteLog "Found advertisement "&sAdvertID&" in advertisement history.","1"
+	         	  					sScheduleID = objSchedHist.ScheduledMessageID
+	       	  						WriteLog "The schedule for this advertisement is "&sScheduleID,"1"
+	        	  					AdvertHasRun = True
+	         	 			 		arrPackage = Split(objSchedHist.ScheduledMessageID,"-")
+	         	  					PackageID = arrPackage(1)
+	       	  						WriteLog "The package is "&PackageID,"1"
+	        	  					'delete remote registry key
+	         	  					Err.clear
+	         	  					sKey = "SOFTWARE\Microsoft\SMS\Mobile Client\Software Distribution\Execution History\System\" & PackageID &"\"
+	         	  					Set oRegistry	= GetObject("winmgmts:{impersonationLevel=impersonate}!//" & sMachine & "/root/default:StdRegProv")
+	         	  					oRegistry.EnumKey HKLM,sKey, sKeys
+	         	  					For u = 0 To UBound(sKeys)
+	         	   						errReg = oRegistry.DeleteKey(HKLM, sKey&sKeys(u))
+	         	 					Next
+				  					if (ErrReg <> 0) Then
+									  	WriteLog "Failed to delete execution history in the registry on "&sMachine&" for advertisement "&sAdvertID,"3"
+										WScript.Echo("Failed to delete execution history on "&sMachine&" for advertisement "&sAdvertID)
+				  					Else
+				  						WriteLog "Successfully deleted \\"&sMachine&"\SOFTWARE\Microsoft\SMS\Mobile Client\Software Distribution\Execution History\System\" & PackageID&" from the remote registry","1"
+				  					End If  
+				  					Action = "Advertisement"
+	           	  					exit For
+	    						End If
+							Next
+							If AdvertHasRun = False Then
+								WriteLog "Advertisement ID " & sAdvertID & " has not run before on " & sMachine,"2"
+								WScript.Echo("Advertisement ID " & sAdvertID & " has not run before on " & sMachine)
+							End If
+						End If
+					if setaction = true Then
+						If HWChoice = 6 Then
+							Set oINVNamespace = GetObject("winmgmts://" & sMachine & "/root/ccm/invagt")
+							If Err.Number = 0 Then
+								WriteLog "Connected to WMI namespace \\" & sMachine & "\root\ccm\invagt","1"
+								oINVNamespace.Delete "InventoryActionStatus.InventoryActionID="&Chr(34)&sScheduleID&Chr(34)
+								If Err.Number = 0 Then
+									WriteLog "Successfully deleted delta Hardware Inventory information for "&sMachine,"1"
+									Action = "Full Hardware Inventory action"
+								Else
+									WriteLog "Could not delete delta Hardware Inventory information for "&sMachine& " Error:"&Err.Number&" Description:"&Err.Description,"2"
+									Action = "Hardware Inventory action"
+								End If
+							Else
+								WriteLog "Could not connect to WMI namespace \\" & sMachine & "\root\ccm\invagt. Will not force full inventory.  Error:"&Err.Number&" Description:"&Err.Description,"3"
+								WScript.Echo("Could not connect to WMI namespace \\" & sMachine & "\root\ccm\invagt. Will not force full inventory.  Error:"&Err.Number&" Description:"&Err.Description)
+							End If
+						End If
+						If SWChoice = 6 Then
+							Set oINVNamespace = GetObject("winmgmts://" & sMachine & "/root/ccm/invagt")
+							If Err.Number = 0 Then
+								WriteLog "Connected to WMI namespace \\" & sMachine & "\root\ccm\invagt","1"
+								oINVNamespace.Delete "InventoryActionStatus.InventoryActionID="&Chr(34)&sScheduleID&Chr(34)
+								If Err.Number = 0 Then
+									WriteLog "Successfully deleted delta Software Inventory information for "&sMachine,"1"
+									Action = "Full Software Inventory action"
+								Else
+									WriteLog "Could not delete delta Software Inventory information for "&sMachine&" Error:"&Err.Number&" Description:"&Err.Description,"2"
+									Action = "Software Inventory action"
+								End If
+							Else
+								WriteLog "Could not connect to WMI namespace \\" & sMachine & "\root\ccm\invagt. Will not force full inventory.  Error:"&Err.Number&" Description:"&Err.Description,"3"
+								WScript.Echo("Could not connect to WMI namespace \\" & sMachine & "\root\ccm\invagt. Will not force full inventory.  Error:"&Err.Number&" Description:"&Err.Description)
+							End If
+						End If
+						Err.Clear
+						set oParams = oInstance.Methods_("TriggerSchedule").inParameters.SpawnInstance_()
+						oParams.sScheduleID = sScheduleID
+						oCCMNamespace.ExecMethod "SMS_Client", "TriggerSchedule", oParams
+						if (Err.number <> 0) Then
+							WriteLog Action & " failed on " & sMachine & ". Error: " & Err.Number & ". Description: " & Err.Description,"3"
+							WScript.Echo(Action & " failed on " & sMachine & ". Error: " & Err.Number & ". Description: " & Err.Description)
+						Else
+							WriteLog Action & " was triggered on " & sMachine&". The triggered schedule ID was "&sScheduleID,"1"
+	    					WScript.Echo(Action & " was triggered on " & sMachine)
+						End If
+					End if
+					If ChangeAssign = True then
+						set oParams = oInstance.Methods_("SetAssignedSite").inParameters.SpawnInstance_()
+						oParams.sSiteCode = sSiteCode
+						oCCMNamespace.ExecMethod "SMS_Client", "SetAssignedSite", oParams
+						if (Err.number <> 0) Then
+							WriteLog "Site assignment of " & sSiteCode & "failed On " & sMachine & ". Error: " & Err.Number & " Description: " & Err.Description,"3"
+							WScript.Echo("Site assignment of " & sSiteCode & "failed On " & sMachine & ". Error: " & Err.Number & " Description: " & Err.Description)
+						Else
+							WriteLog sMachine & " is reassigned to " & sSiteCode,"1"
+	    					WScript.Echo(sMachine & " is reassigned to " & sSiteCode)
+						end If
+					End If
+				End If
+			End If
+		Loop
+		a.close
+		WriteLog "******************* Finished ********************","1"
+		WScript.Sleep(10000)
+	End If
+
+End Sub
+
+'----------------------------------------------------------------
+'----------------------------------------------------------------
+
+Sub WriteLog(Message,LineType)
+	sDate = Replace(FormatDateTime(Date,2),"/","-")
+	sTime = Hour(Time)&":"&Minute(Time)&":"&Second(Time)
+	Set WshShell = WScript.CreateObject("WScript.Shell")
+	LogFile = WshShell.RegRead("HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PathName")&"\SMSExtensions.Log"
+	Set filesys1 = CreateObject("Scripting.FileSystemObject") 
+	Set FileWrite = filesys1.OpenTextFile(LogFile,8,True) 
+	FileWrite.WriteLine "<![LOG["&Message&"]LOG]!><time="&Chr(34)&sTime&".0+360"&Chr(34)&" date="&Chr(34)&sDate&Chr(34)&" component="&Chr(34)&"SMS Extensions"&Chr(34)&" context="&Chr(34)&Chr(34)&" type="&Chr(34)&LineType&Chr(34)&" thread="&Chr(34)&LineType&Chr(34)&" file="&Chr(34)&"SMSExtend.vbs"&Chr(34)&">"
+	FileWrite.Close  
+End Sub
+
+'----------------------------------------------------------------
+'----------------------------------------------------------------
+
+Sub Echo(typ, msg)
+	If debugEnabled = True Then
+		Select Case Ucase(typ)
+			Case "INFO": MsgBox msg, vbOkOnly+vbInformation, appTitle & ": Info"
+			Case "FAIL": MsgBox msg, vbOkOnly+vbCritical, appTitle & ": Fail"
+			Case "WARN": MsgBox msg, vbOkOnly+vbExclamation, appTitle & ": Warning"
+			Case Else: MsgBox msg, vbOkOnly+vbQuestion, appTitle & ": Unknown"
+		End Select
+	End If
+End Sub
+
+'----------------------------------------------------------------
+
+</script>
+
+<body style="margin-top:0px;margin-left:0px;margin-right:0px">
+
+<table width="530" border="0" cellpadding="4">
+	<tr>
+		<td class="v10">
+			Collection:<br/>
+			<select name="Collection" id="Collection" size="1" style="width:500px;padding:5px;">
+				<option></option>
+			</select>
+		</td>
+	</tr>
+	<tr>
+		<td class="v10">
+			Action:<br/>
+			<input type="radio" name="Act" value="1" checked/> Refresh Machine Policy<br />
+			<input type="radio" name="Act" value="2" /> Run Hardware Inventory<br/>
+			<input type="radio" name="Act" value="3" /> Run Software Inventory
+		</td>
+	</tr>
+	<tr>
+		<td class="v10">
+		<select name="clist" size="5" style="width:500px" multiple="multiple">
+			<option></option>
+		</select>
+		</td>
+	</tr>
+	<tr>
+		<td class="v10">
+		<pre id=idver>  </pre>
+		<pre id=idnam>  </pre>
+		<p><br/></p>
+		<div align="center">
+		<input id=btnAbout class="button" type="button" value="About" name="btnAbout" onClick="AboutButton" tabIndex=1>
+		<input id=btnCancel class="button" type="button" value="Cancel" name="btnCancel" onClick="CancelButton" tabIndex=2>
+		<input id=btnExec class="button" type="button" value="Execute" name="btnExec" onClick="ExecAction" tabIndex=0>
+		</div>
+	</tr>
+</table>
+</body>
