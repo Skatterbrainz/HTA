@@ -1,0 +1,352 @@
+<HTML>
+  <HEAD>
+  <TITLE>Input Types</TITLE>
+  
+      <HTA:APPLICATION
+      Application ID = "InputTypes"
+      APPLICATIONNAME = "InputTypes"
+      BORDER = "Thick"
+      BORDERSTYLE = "Complex"
+      CAPTION = "Yes"
+      CONTEXTMENU = "no"
+      ICON = ""
+      INNERBORDER = "yes"
+      MAXIMIZEBUTTON = "no"
+      MINIMIZEBUTTON = "no"
+      NAVIGABLE = "Yes"
+      SCROLL = "No"
+      SCROLLFLAT = "Yes"
+      SELECTION = "No"
+      SHOWINTASKBAR = "Yes"
+      SINGLEINSTANCE = "Yes"
+      SYSMENU = "yes"
+      VERSION = "1.0"
+      WINDOWSTATE = "Normal"
+      />
+  </HEAD>
+  <!-- I can't remember where I got this - so if you object to it being posted here - please let me know and Ill promptly remove it -->
+  <!-- GradientType=0 - Top to Bottom, GradientType=1 - Left to Right -->
+  <BODY STYLE="font:9pt arial; color:#000000; filter:progid:DXImageTransform.Microsoft.Gradient (GradientType=0, StartColorStr='#ddd7ff', EndColorStr='#7670ff')">
+    <SCRIPT LANGUAGE="VBScript">
+  
+  Dim fso, oFile
+      Set fso = CreateObject("Scripting.FileSystemObject")
+      Set oFile = fso.OpenTextFile( "TextArea.txt",8,true)
+      Set objShell = CreateObject("WScript.Shell") 
+  '<!--#################[ Set Dialog Size and Position ]######################-->
+      Sub StartUp()
+          Dim x,y
+          x = (window.screen.width - 850) / 2
+          y = (window.screen.height - 780) / 2
+          If x < 0 Then x = 0
+          If y < 0 Then y = 0
+          window.resizeTo 850,780
+          window.moveTo x,y
+      End Sub
+      StartUp
+  
+  '<!--#####################[ Submit Text ]##########################-->
+      Sub SubmitText
+          MsgBox "You Entered" & vbcrlf & txt.value, 64,"Text Input"
+      End Sub 'SubmitText
+  
+  '<!--#####################[ Submit Text Area ]#####################-->
+      Sub Submitarea
+          sTxtarea = document.all("Txtarea").Value
+          oFIle.Write sTxtarea & vbCRLF
+          MsgBox "Your text has been added to TextArea.txt", 64,"Textarea Input"
+      End Sub 'Submitarea
+      Sub OpenTxtArea
+          ShellRun = objShell.Run ("%comspec% /c Start Notepad TextArea.txt", 0, 1)
+      End Sub 'OpenTxtArea
+  
+  
+  '<!--#######################[ Radio Button ]#######################-->
+      Sub CheckRadio
+          If rbtn(0).Checked Then
+          MsgBox "You Selected Option 1", 64,"Radio Button"
+          End If
+      
+          If rbtn(1).Checked Then
+          MsgBox "You Selected Option 2", 64,"Radio Button"
+          End If
+      
+          If rbtn(2).Checked Then
+          MsgBox "You Selected Option 3", 64,"Radio Button"
+          End If
+      End Sub 'CheckRadio
+  
+  '<!--#######################[ Checkbox ]#######################-->
+      Sub CheckChkBx
+        Set CBForm = Document.ChkBoxFrm
+         If CBForm.ChkBx1.Checked Then ChkBx1 = CBForm.ChkBx1.Value & VBCRLF
+         If CBForm.ChkBx2.Checked Then ChkBx2 = CBForm.ChkBx2.Value & VBCRLF
+         If CBForm.ChkBx3.Checked Then ChkBx3 = CBForm.ChkBx3.Value
+             WhatsChecked = ChkBx1 & ChkBx2 & ChkBx3
+         If WhatsChecked = "" Then
+             MsgBox "You Didn't Select Anything", 64,"Checkbox Selections"
+             Else
+          MsgBox "You Selected:" & vbcrlf & WhatsChecked, 64,"Checkbox Selections"
+         End If
+      
+      ChkBx1 = ""
+      ChkBx2 = ""
+      ChkBx3 = ""
+      End Sub 'CheckChkBx
+  
+  '<!--#######################[ Dropdown Menu OnChange ]#######################-->
+      Sub RunDropChange
+          Msgbox "You Selected Option" & " " & DropDown1.Value, 64,"Dropdown Menu OnChange"
+      End Sub 'RunDropChange
+  
+  '<!--#######################[ Dropdown Menu OnClick ]#######################-->
+      Sub RunDropClick
+          Msgbox "You Selected Option" & " " & DropDown2.Value, 64,"Dropdown Menu OnClick"
+      End Sub 'RunDropClick
+  
+  '<!--#######################[ Listbox Menu OnChange ]#######################-->
+      Sub RunList
+          Msgbox "You Selected Option" & " " & Listbox1.Value, 64,"Listbox Menu OnChange"
+      End Sub
+  
+  '<!--#######################[ Multi-Select Listbox Menu ]#######################-->
+      Sub RunMultiList
+          For i = 0 to (MultiListBox.Options.Length - 1)
+              If (MultiListBox.Options(i).Selected) Then
+                  strChoices = strChoices  & "Option " & MultiListBox.Options(i).Value & vbcrlf
+              End If
+          Next
+          Msgbox "You Selected:" & vbcrlf & strChoices, 64,"Multi-Select ListBox Menu"
+      End Sub 'RunMultiList
+  
+  
+  '<!--#######################[ Listbox Menu From File ]#######################-->
+      Sub Window_Onload
+          ForReading = 1
+          strNewFile = "Phrases.txt"
+          Set objFSO = CreateObject("Scripting.FileSystemObject")
+          Set objFile = objFSO.OpenTextFile _
+              (strNewFile, ForReading)
+          Do Until objFile.AtEndOfStream
+              strLine = objFile.ReadLine
+              Set objOption = Document.createElement("OPTION")
+              objOption.Text = strLine
+              objOption.Value = strLine
+              AvailablePhrases.Add(objOption)
+          Loop
+          objFile.Close
+      End Sub
+  
+      Sub onthefly
+          Selection = AvailablePhrases.Value
+          MsgBox "You Selected:" & VBCRLF & Selection, 64,"On-The-Fly List Box"
+      End Sub 'onthefly
+      Sub OpenPhrases
+          ShellRun = objShell.Run ("%comspec% /c Start Notepad Phrases.txt", 0, 1)
+      End Sub '
+  '<!--#######################[ Browse for File ]#######################-->
+      Sub Readfile
+       sFile = datafile.Value
+       If sFile = "" Then
+          MsgBox "Select a File First.      ", 64,"Browse for File"
+       Else
+          ShellRun = objShell.Run ("%comspec% /c Start Notepad "& sFile, 0, 1)
+      End If
+      End Sub 'Readfile
+  
+  '<!--#############################[ Quit ]#############################-->
+    Sub Quit_onclick
+      Window.Close
+    End Sub
+  
+   </SCRIPT>
+  
+  <TABLE width="100%" border=1>
+  <TR>
+  <TD>
+  
+  <!--==--==--==--==--==--==--==--==-- Text Types --==--==--==--==--==--==--==-->
+  <TABLE Width="100%" border="1">
+      <TR>
+         <TD bgcolor="#ffd638">
+          
+  <b>boldface text</b>&nbsp <i>italic text</i>&nbsp <u>underlined text</u><br>regular script &nbsp<sub>sub script</sub>&nbsp <sup>super script</sup>&nbsp&nbsp<TT>Typewriter Text</TT><br>This &nbsp;&nbsp; text &nbsp;&nbsp; is &nbsp;&nbsp; separated &nbsp;&nbsp; by &nbsp;&nbsp; blank &nbsp;&nbsp; spaces.
+          
+         </TD>
+      </TR>
+  </TABLE>
+  <BR>
+  <!--==--==--==--==--==--==--==--==-- Text Input --==--==--==--==--==--==--==-->
+  <CENTER>
+  <TABLE Width="100%" border="1">
+      <TR>
+          <TD bgcolor="#28ffbc">
+          <FONT SIZE=2><B><I>Text Input</I></B></FONT><BR>
+          <CENTER>
+          <input type="text" style="background-color:#ffb7d6" size="16" name="txt" value="Enter text here">&nbsp
+          <input type="button" value="Submit" onclick="SubmitText">
+          </CENTER>
+          </TD>
+      </TR>
+  </TABLE>
+  
+  <!--==--==--==--==--==--==--==--==-- Textarea Input --==--==--==--==--==--==--==-->
+  <HR>
+  <TABLE Width="100%" border="1">
+      <TR>
+          <TD bgcolor="#28ffbc">
+          <FONT SIZE=2><B><I>Textarea Input</I></B></FONT><BR>
+          <CENTER>
+              <TEXTAREA style="
+                  Height:193;
+                  Width:100%;
+                  font-Size:12;
+                  color:#000000;
+                  background-color:#ffffe7;
+                  font-weight:normal;
+                  font-family:MS Sans Serif" 
+                     TITLE="" 
+                     NAME=Txtarea TABORDER=2 WRAP=PHYSICAL>Text Box
+  The contents of this text area will be written to TextArea.txt when you click submit.
+              </TEXTAREA>
+      <TR>
+          <TD bgcolor="#28ffbc">
+          <CENTER>
+          <input type="button" value="Submit" onclick="Submitarea">
+          <input type="button" value="Open" onclick="OpenTxtArea">
+          </CENTER>
+          </TD>
+      </TR>
+          </CENTER>
+          </TD>
+      </TR>
+  </TABLE>
+  
+  <!--==--==--==--==--==--==--==--==-- Radio Button --==--==--==--==--==--==--==-->
+  <HR>
+  <TABLE Width="100%" border="0">
+    <TR>
+      <TD>
+      <FONT SIZE=2><B><I>Radio Button</I></B></FONT><BR>
+  <font color="#000000"><i><fieldset><legend>Select One</legend></i></font>
+      <CENTER>
+      <input type="radio" style="background-color:#ff0000" checked name="rbtn" value="0">Option 1
+      <input type="radio" style="background-color:#ffff00" name="rbtn" value="1">Option 2
+      <input type="radio" style="background-color:#00ff00" name="rbtn" value="2">Option 3
+      <BR>
+      <BR>
+      <INPUT style="background-color:#cfcfcf" type="Button" Value="Check"  onclick="CheckRadio">
+      </CENTER>
+      </TD>
+    </TR>
+  </TABLE>
+  
+  <!--==--==--==--==--==--==--==--==-- Checkbox --==--==--==--==--==--==--==-->
+  <HR>
+  <TABLE Width="100%" border="0">
+    <TR>
+      <TD>
+      <Form Name=ChkBoxFrm>
+          <FONT SIZE=2><B><I>Check-Box</I></B></FONT><BR>
+  <font color="#000000"><i><fieldset><legend>Select One or More</legend></i></font>
+      <CENTER>
+      <input style="background-color:#00ff00" name="ChkBx1" Checked value="Box1" type="checkbox">CheckBox 1
+      <input style="background-color:#ffff00" name="ChkBx2" value="Box2" type="checkbox">CheckBox 2
+      <input style="background-color:#ff0000" name="ChkBx3" value="Box3" type="checkbox">CheckBox 3
+      <BR>
+      <BR>
+      <INPUT type="Button" Value="Check"  onclick="CheckChkBx">
+      </CENTER>
+      </Form>
+      </TD>
+    </TR>
+  </TABLE>
+  
+  <!--==--==--==--==--==--==--= Beginning of Right Side =--==--==--==--==--==-->
+  <!--==--==--==--==--==--==--==-- DropMenu OnChange --==--==--==--==--==--==-->
+  
+  <TD>
+  <FONT SIZE=2><B><I>Drop Down Menu onChange</I></B></FONT><BR>
+  <select size="1" name="DropDown1" onChange="RunDropChange">
+  <option>Choose One&nbsp&nbsp&nbsp&nbsp&nbsp</option>
+  <option value="1">onChange Option 1</option>
+  <option value="2">onChange Option 2</option>
+  <option value="3">onChange Option 3</option>
+  <option value="4">onChange Option 4</option>
+  </select>
+  <HR>
+  <!--==--==--==--==--==--==--==-- DropMenu OnClick --==--==--==--==--==--==-->
+  
+  <BR>
+  <FONT SIZE=2><B><I>Drop Down Menu onClick</I></B></FONT><BR>
+  <select size="1" name="DropDown2">
+  <option value="1">OnClick Option 1&nbsp&nbsp&nbsp&nbsp&nbsp</option>
+  <option value="2">OnClick Option 2</option>
+  <option value="3">OnClick Option 3</option>
+  <option value="4">OnClick Option 4</option>
+  </select>
+  <BR>
+  <BR>
+  <CENTER>
+  <input type="button" onClick="RunDropClick" value="Submit">
+  </CENTER>
+  <HR>
+  <!--==--==--==--==--==--==--==-- Listbox OnChange --==--==--==--==--==--==-->
+  <FONT SIZE=2><B><I>Select an Option:</I></B></FONT><BR>
+  <select size="4" name="Listbox1" onChange="RunList">
+  <option value="1">Listbox Option 1&nbsp&nbsp&nbsp&nbsp&nbsp</option>
+  <option value="2">Listbox Option 2</option>
+  <option value="3">Listbox Option 3</option>
+  <option value="4">Listbox Option 4</option>
+  </select>
+  <HR>
+  
+  <!--==--==--==--==--==--==--==-- Multi-Select ListBox --==--==--==--==--==--==-->
+  <FONT SIZE=2><B><I>Use Ctrl to Select Multiple Options:</I></B></FONT><BR>
+  <select size="4" name="MultiListBox" multiple>
+  <option value="1">MultiListBox Option 1</option>
+  <option value="2">MultiListBox Option 2</option>
+  <option value="3">MultiListBox Option 3</option>
+  <option value="4">MultiListBox Option 4</option>
+  </select>
+  <BR>
+  <BR>
+  <CENTER>
+  <input type="button" onClick="RunMultiList" value="Submit">
+  </CENTER>
+  
+  <!--==--==--==--==--==--==--==-- ListBox From File --==--==--==--==--==--==-->
+  <HR>
+  <FONT SIZE=2><B><I>Drop Down Menu From File</I></B></FONT><BR>
+  <select size="1" name="AvailablePhrases">
+  </select>
+  <BR>
+  <BR>
+  <CENTER>
+  <input type="button" onClick="onthefly" value="Submit">
+  <input type="button" value="Open" onclick="OpenPhrases">
+  </CENTER>
+  
+  <!--==--==--==--==--==--==--==-- Browse For File --==--==--==--==--==--==-->
+  <HR>
+  <FONT SIZE=2><B><I>Please specify a text file To Open:</I></B></FONT><BR>
+  <input type="file" style="background-color:#ffb7d6" name="datafile" size="20">
+  <p>
+  <CENTER>
+  <input type="submit" onClick="Readfile" value="Open File">
+  </CENTER>
+  </p>
+  
+  </TD>
+  </TR>
+  </TABLE>
+  
+  <!--==--==--==--==--==--==--==-- Quit --==--==--==--==--==--==-->
+  <CENTER>
+  <HR Size -1>
+  <INPUT TYPE=BUTTON NAME="Quit" VALUE=" Quit ">
+  </CENTER>
+  
+  </CENTER>
+  </BODY>
+  </HTML>
