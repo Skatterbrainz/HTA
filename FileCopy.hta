@@ -1,0 +1,329 @@
+<html>
+<head>
+<title>File Copy</title>
+<HTA:APPLICATION 
+	ID="objTest" 
+	APPLICATIONNAME="FileCopy"
+	SCROLL="no"
+	SINGLEINSTANCE="yes"
+	MAXIMIZEBUTTON="no"
+	MINIMIZEBUTTON="no"
+	BORDER="thin"
+>
+<style type="text/css">
+.b100 {width:100px; font-family:verdana,arial;font-size:10pt;}
+.select1 {font-family:verdana;font-size:10pt;}
+</style>
+</head>
+
+<SCRIPT LANGUAGE="VBScript">
+
+currHeight = 400
+currWidth  = 500
+Dim userID, compID, strAction
+
+Const TESTMODE = False
+
+Const vbOverWrite = True
+Const vbNoOverWrite = False
+
+Dim srcFolder
+Dim targetBase
+Dim strTargetTemp
+Dim srcType
+
+srcFolder = GetEnv("USERPROFILE") & "\My Documents\My Pictures"
+targetBase = "\\SERVER1\Docs\upload\test"
+srcType = ".txt"
+
+strTargetTemp = ""
+
+folderMap = "Folder 1=$TARGET$\folder1," & _
+	"Folder 2=$TARGET$\folder2," & _
+	"Folder 3=$TARGET$\folder3," & _
+	"Folder 4=$TARGET$\folder4"
+
+'----------------------------------------------------------------
+' function:
+'----------------------------------------------------------------
+
+Function GetEnv(strVar)
+	Dim wshShell, retval
+	Set wshShell = CreateObject("Wscript.Shell")
+	If Left(strVar,1) <> "%" Then
+		strVar = "%" & strVar & "%"
+	End If
+	retval = wshShell.ExpandEnvironmentStrings(strVar)
+	Set wshShell = Nothing
+	GetEnv = retval
+End Function
+
+'----------------------------------------------------------------
+' function:
+'----------------------------------------------------------------
+
+Function MoveOneFile(srcFile, destination)
+	Dim wshShell, retval
+	Set wshShell = CreateObject("Wscript.Shell")
+	srcFile = Chr(34) & srcFile & Chr(34)
+	retval = wshShell.Run("cmd.exe /c MOVE " & srcFile & " " & destination & " /Y", 1, True)
+	Set wshShell = Nothing
+	MoveOneFile = retval
+End Function
+
+'----------------------------------------------------------------
+' function:
+'----------------------------------------------------------------
+
+Sub Window_Onload
+	window.resizeTo currWidth,currHeight
+	'idTimer = window.setTimeout("Restart", intTime, "VBScript")
+	Set objShell = CreateObject("Wscript.Shell")
+	userID = objShell.ExpandEnvironmentStrings("%username%")
+	compID = objShell.ExpandEnvironmentStrings("%computername%")
+	window.user.value = userID
+	window.comp.value = compID
+	SetupActionsList
+End Sub
+
+'----------------------------------------------------------------
+' function:
+'----------------------------------------------------------------
+
+Sub SetupActionsList
+
+	window.document.getElementById("selActions").innerHTML = ""
+
+	Dim objSel1 : Set objSel1 = window.document.getElementById("selActions")
+	Dim strSelVal : strSelVal = objSel1.Value
+	
+	Dim strTemp, objOption
+
+	For each mset in Split(folderMap, ",")
+		arrX  = Split(mset, "=")
+		label = arrX(0)
+		fpath = arrX(1)
+
+		Set objOption = window.document.createElement("option")
+		objOption.Value = fpath
+		objOption.Text  = label
+		
+		window.document.getElementById("selActions").Add(objOption)
+	Next
+End Sub
+
+'----------------------------------------------------------------
+' function:
+'----------------------------------------------------------------
+
+Sub ShowActionChoice
+	strAction = ""
+	For Each objItem in selActions.Options
+		If objItem.Selected Then
+			strAction = strAction & objItem.Value & vbCRLF
+		End If
+	Next
+	
+	If Not IsEmpty(strAction) AND Trim(strAction) <> "" Then
+		MsgBox "You selected the following items: " & vbCRLF & strAction
+	Else
+		MsgBox "No items were selected"
+	End If
+End Sub  
+
+'----------------------------------------------------------------
+' function:
+'----------------------------------------------------------------
+
+Sub SetActionType
+	strAction = ""
+	For Each objItem in selActions.Options
+		If objItem.Selected Then
+			strAction = strAction & objItem.Value & vbCRLF
+		End If
+	Next
+	
+	If Not IsEmpty(strAction) AND Trim(strAction) <> "" Then
+		strTargetTemp = Replace(strAction, "$TARGET$", targetBase)
+	End If
+End Sub  
+
+'----------------------------------------------------------------
+' function:
+'----------------------------------------------------------------
+
+Sub CompInfo
+	strComputer = "." 
+	Set objWMIService = GetObject("winmgmts:\\" & strComputer & "\root\CIMV2") 
+	Set colItems = objWMIService.ExecQuery("SELECT * FROM Win32_ComputerSystem",,48) 
+	For Each objItem in colItems
+		strDomain = objItem.Domain
+		strMfr = objItem.Manufacturer
+		strModel = objItem.Model
+	Next
+	window.cs1.value = strDomain
+	window.cs2.value = strMfr
+	window.cs3.value = strModel
+End Sub
+
+'----------------------------------------------------------------
+' function:
+'----------------------------------------------------------------
+
+Sub DoCopyFiles
+	Dim objFSO, objFolder1, objFolder2
+	Dim fileName, sourceFile, filesList, finalTarget
+	
+	filesList = ""
+	resultList = ""
+	
+	SetActionType()
+	
+	If strTargetTemp <> "" Then
+		
+		Set objFSO = CreateObject("Scripting.FileSystemObject")
+		
+		finalTarget = strTargetTemp & "\"
+		
+		If objFSO.FolderExists(srcFolder) Then
+			Set objFolder1 = objFSO.GetFolder(srcFolder)
+			
+			' comment: disabled FSO validation due to UNIX/NFS issues
+			
+			'If objFSO.FolderExists(strTargetTemp) Then
+				
+				MsgBox "Moving scanned image files to..." & vbCRLF & _
+					finalTarget, vbOkOnly+vbInformation, "Test Output"
+				
+				For each objFile in objFolder1.Files
+					fileName = objFile.Name
+					
+					If Right(Lcase(fileName),4) = srcType Then
+					
+						sourceFile = srcFolder & "\" & fileName
+
+						If objFSO.FileExists(sourceFile) Then
+
+							If filesList <> "" Then
+								filesList = filesList & "," & fileName
+							Else
+								filesList = fileName
+							End If
+
+							MsgBox "Source: " & Chr(34) & sourceFile & Chr(34) & vbCRLF & _
+								"Target: " & finalTarget, vbOkOnly, "Test"
+							
+							If TESTMODE <> True Then
+								excode = MoveOneFile(sourceFile, finalTarget)
+								'objFSO.MoveFile Chr(34) & sourceFile & Chr(34), finalTarget
+							End If
+							
+							If excode = 0 Then
+								If resultList <> "" Then
+									resultList = resultList & ",OK = " & fileName
+								Else
+									resultList = "OK = " & fileName
+								End If
+							Else
+								If resultList <> "" Then
+									resultList = resultList & ",FAILED [" & excode & "] = " & fileName
+								Else
+									resultList = "FAILED [" & excode & "] = " & fileName
+								End If
+							End If
+						Else
+							If resultList <> "" Then
+								resultList = resultList & ",ERROR = " & fileName
+							Else
+								resultList = "ERROR = " & fileName
+							End If
+						End If
+					End If
+				Next
+				
+				If TESTMODE = True Then
+					cap = "Test Output Results"
+				Else
+					cap = "Output Results"
+				End If
+				
+				MsgBox "Process Completed (results):" & _
+					vbCRLF & Replace(resultList, ",", vbCRLF), _
+					vbOkOnly+vbInformation, cap
+			'Else
+			'	MsgBox "Unable to connect to server (destination) folder:" & _
+			'		vbCRLF & strTargetTemp, _
+			'		vbOkOnly+vbCritical, "Error!"
+			'End If
+		Else
+			MsgBox "Unable to connect to local (source) folder:" & _
+				vbCRLF & srcFolder, _
+				vbOkOnly+vbCritical, "Error!"
+		End If
+	Else
+		MsgBox "No User/Action was selected...", vbOkOnly+vbCritical, "Error!"
+	End If
+End Sub
+
+'----------------------------------------------------------------
+' function:
+'----------------------------------------------------------------
+
+Sub ExitButton
+	window.clearTimeout(idTimer)
+	window.Close()
+End Sub
+
+'----------------------------------------------------------------
+' function:
+'----------------------------------------------------------------
+
+Sub AboutButton
+	MsgBox "CMIC Test Copy Application" & vbCRLF & _
+		"Copyright (C)2012 Skatterbrainz", _
+		vbOkOnly+vbInformation, "About"
+End Sub
+
+'----------------------------------------------------------------
+</SCRIPT>
+
+<body style="margin-top:0px;margin-left:0px;margin-right:0px">
+
+<table width="790" border="0" cellpadding="4">
+	<tr>
+		<td>
+			<input type="text" name="user" id="user" size="20"/>
+			<input type="text" name="comp" id="comp" size="20"/>
+		</td>
+	</tr>
+	<tr>
+		<td>
+			<select size="14" name="selActions" class="select1" style="width:470px">
+				<optgroup label="Group 1">
+					<option value="RED">Red</option>
+					<option value="BLUE">Blue</option>
+					<option value="GREEN">Green</option>
+					<option value="YELLOW">Yellow</option>
+				</optgroup>
+				<optgroup label="Group 2">
+					<option value="ORANGE">Orange</option>
+					<option value="PURPLE">Purple</option>
+					<option value="MAGENTA">Magenta</option>
+				</optgroup>
+			</select>
+			<br/>
+			<!--
+			<input id=btn2 class="button" type="button" value="Show" name="btn2" onClick="ShowActionChoice">
+			-->
+		</td>
+	</tr>
+</table>
+
+<div align="right">
+<input id=btnCopy type="button" value="Process" name="btnCopy" class="b100" onClick="DoCopyFiles" tabIndex=1>
+<input id=btnAbout type="button" value="About" name="btnAbout" class="b100" onClick="AboutButton" tabIndex=2>
+<input id=btnCancel type="button" value="Exit" name="btnExit" class="b100" onClick="ExitButton" tabIndex=3>
+</div>
+
+</body>
+</html>
